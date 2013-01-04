@@ -33,7 +33,7 @@ module CapistranoResque
 
         def start_command(queue, pid)
           "cd #{current_path} && RAILS_ENV=#{rails_env} QUEUE=\"#{queue}\" \
-           PIDFILE=#{pid} BACKGROUND=yes VERBOSE=1 \
+           PIDFILE=#{pid} TERM_CHILD=1 BACKGROUND=yes VERBOSE=1 \
            #{fetch(:bundle_cmd, "bundle")} exec rake resque:work"
         end
 
