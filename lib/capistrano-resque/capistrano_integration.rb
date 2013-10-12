@@ -8,6 +8,7 @@ module CapistranoResque
 
         _cset(:workers, {"*" => 1})
         _cset(:resque_kill_signal, "QUIT")
+        _cset(:interval, "5")
 
         def workers_roles
           return workers.keys if workers.first[1].is_a? Hash
@@ -33,7 +34,7 @@ module CapistranoResque
 
         def start_command(queue, pid)
           "cd #{current_path} && RAILS_ENV=#{rails_env} QUEUE=\"#{queue}\" \
-           PIDFILE=#{pid} TERM_CHILD=1 NEWRELIC_ENABLE=false BACKGROUND=yes VERBOSE=1 \
+           PIDFILE=#{pid} BACKGROUND=yes VERBOSE=1 INTERVAL=#{interval} \
            #{fetch(:bundle_cmd, "bundle")} exec rake resque:work"
         end
 
@@ -47,7 +48,7 @@ module CapistranoResque
 
         def start_scheduler(pid)
           "cd #{current_path} && RAILS_ENV=#{rails_env} \
-           PIDFILE=#{pid} BACKGROUND=yes VERBOSE=1 \
+           PIDFILE=#{pid} BACKGROUND=yes VERBOSE=1 MUTE=1 \
            #{fetch(:bundle_cmd, "bundle")} exec rake resque:scheduler"
         end
 
@@ -72,7 +73,7 @@ module CapistranoResque
                 threads = []
                 number_of_workers.times do
                   pid = "./tmp/pids/resque_work_#{worker_id}.pid"
-                  threads << Thread.new { run(start_command(queue, pid), :roles => role) }
+                  threads << Thread.new(pid) { |pid| run(start_command(queue, pid), :roles => role) }
                   worker_id += 1
                 end
                 threads.each(&:join)
@@ -96,7 +97,7 @@ module CapistranoResque
             stop
             start
           end
-          
+
           namespace :scheduler do
             desc "Starts resque scheduler with default configs"
             task :start, :roles => :resque_scheduler do
