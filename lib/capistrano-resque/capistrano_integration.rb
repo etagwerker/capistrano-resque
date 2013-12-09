@@ -9,6 +9,7 @@ module CapistranoResque
         _cset(:workers, {"*" => 1})
         _cset(:resque_kill_signal, "QUIT")
         _cset(:interval, "5")
+        _cset(:resque_environment_task, false)
 
         def workers_roles
           return workers.keys if workers.first[1].is_a? Hash
@@ -35,7 +36,9 @@ module CapistranoResque
         def start_command(queue, pid)
           "cd #{current_path} && RAILS_ENV=#{rails_env} QUEUE=\"#{queue}\" \
            PIDFILE=#{pid} BACKGROUND=yes VERBOSE=1 INTERVAL=#{interval} \
-           #{fetch(:bundle_cmd, "bundle")} exec rake resque:work"
+           #{fetch(:bundle_cmd, "bundle")} exec rake \
+           #{"environment" if fetch(:resque_environment_task)} \
+           resque:work"
         end
 
         def stop_command
@@ -43,6 +46,12 @@ module CapistranoResque
            for f in `ls #{current_path}/tmp/pids/resque_work*.pid`; \
              do #{try_sudo} kill -s #{resque_kill_signal} `cat $f` \
              && rm $f ;done \
+           ;fi"
+        end
+
+        def status_scheduler
+          "if [ -e #{current_path}/tmp/pids/scheduler.pid ]; then \
+             ps -p $(cat #{current_path}/tmp/pids/scheduler.pid) | sed -n 2p \
            ;fi"
         end
 
@@ -54,7 +63,7 @@ module CapistranoResque
 
         def stop_scheduler(pid)
           "if [ -e #{pid} ]; then \
-            #{try_sudo} kill $(cat #{pid}) ; rm #{pid} \
+            #{try_sudo} kill -s #{resque_kill_signal} $(cat #{pid}) ; rm #{pid} \
            ;fi"
         end
 
@@ -99,6 +108,11 @@ module CapistranoResque
           end
 
           namespace :scheduler do
+            desc "See current scheduler status"
+            task :status, :roles => :resque_scheduler do
+              run(status_scheduler)
+            end
+
             desc "Starts resque scheduler with default configs"
             task :start, :roles => :resque_scheduler do
               pid = "#{current_path}/tmp/pids/scheduler.pid"
